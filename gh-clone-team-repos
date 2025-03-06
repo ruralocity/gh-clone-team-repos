@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Function to print usage
+usage() {
+    echo "Usage: ./clone-team-repos.sh <org>/<team-slug>"
+    exit 1
+}
+
+# Verify that an argument is provided
+if [ "$#" -ne 1 ]; then
+    usage
+fi
+
+TEAM=$1
+
+# Extract organization and team slug
+ORG=$(echo "$TEAM" | cut -d'/' -f1)
+TEAM_SLUG=$(echo "$TEAM" | cut -d'/' -f2)
+
+if [ -z "$ORG" ] || [ -z "$TEAM_SLUG" ]; then
+    echo "Invalid team format. Use <org>/<team-slug>"
+    exit 1
+fi
+
+# Ask the user for a clone directory, default to ~/Documents
+DEFAULT_DIR=~/Documents
+read -p "Enter directory to clone repositories into (default: $DEFAULT_DIR): " CLONE_DIR
+CLONE_DIR="${CLONE_DIR:-$DEFAULT_DIR}"  # Use default if empty
+CLONE_DIR="$(eval echo "$CLONE_DIR")"   # Expand ~ to absolute path
+
+# Ensure the directory exists
+mkdir -p "$CLONE_DIR"
+
+echo "Repositories will be cloned into: $CLONE_DIR"
+
+# Fetch all repositories for the team
+echo "Fetching repositories for team: $TEAM..."
+REPOS=$(gh api --paginate "/orgs/$ORG/teams/$TEAM_SLUG/repos" --jq '.[].full_name')
+
+if [ -z "$REPOS" ]; then
+    echo "No repositories found or you lack permission."
+    exit 1
+fi
+
+# Check if fzf is installed
+if ! command -v fzf &> /dev/null; then
+    echo "Error: 'fzf' is required but not installed."
+    echo "Install it using: brew install fzf (Mac) or sudo apt install fzf (Linux)"
+    exit 1
+fi
+
+# Add an "ALL" toggle option at the top
+REPOS_WITH_ALL="(Toggle All)\n$REPOS"
+
+# Interactively select repositories (multi-select enabled)
+SELECTED_REPOS=$(echo -e "$REPOS_WITH_ALL" | fzf --multi --prompt "Select repos to clone (use Space to toggle): ")
+
+# If the user selected "(Toggle All)", then select all repos
+if [[ "$SELECTED_REPOS" == *"(Toggle All)"* ]]; then
+    SELECTED_REPOS="$REPOS"
+fi
+
+# Confirm selection
+if [ -z "$SELECTED_REPOS" ]; then
+    echo "No repositories selected. Exiting..."
+    exit 0
+fi
+
+# Display selected repositories and ask for confirmation
+echo "You have selected the following repositories to clone into \"$CLONE_DIR\":"
+echo "-----------------------------------------------------"
+echo "$SELECTED_REPOS" | sed 's/^/ - /'
+echo "-----------------------------------------------------"
+read -p "Proceed with cloning? (y/N): " CONFIRM
+
+if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
+    # Change to the target directory
+    cd "$CLONE_DIR" || exit
+
+    # Clone selected repositories only if they don't exist
+    for REPO in $SELECTED_REPOS; do
+        REPO_NAME=$(basename "$REPO")  # Get repo name only (last part of repo full_name)
+
+        if [ -d "$REPO_NAME" ]; then
+            echo "Skipping $REPO_NAME (already exists in $CLONE_DIR)."
+        else
+            echo "Cloning $REPO into $CLONE_DIR..."
+            gh repo clone "$REPO"
+        fi
+    done
+    
+    echo "Operation complete! Repositories cloned (or skipped if already present)."
+else
+    echo "Operation canceled."
+fi
