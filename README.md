@@ -3,7 +3,7 @@
 A little `gh` extension I put together to help my team's members clone our
 GitHub repositories in bulk. Not the prettiest, but it works for me so far.
 Maybe useful for you when onboarding new team members, or setting up a fresh
-workstation.
+workstation. ChatGPT-4o was helpful.
 
 ## Getting started
 
