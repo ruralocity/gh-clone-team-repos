@@ -25,7 +25,7 @@ if [ -z "$ORG" ] || [ -z "$TEAM_SLUG" ]; then
 fi
 
 # Ask the user for a clone directory, default to ~/Documents
-DEFAULT_DIR=~/Documents
+DEFAULT_DIR=$(pwd)
 read -p "Enter directory to clone repositories into (default: $DEFAULT_DIR): " CLONE_DIR
 CLONE_DIR="${CLONE_DIR:-$DEFAULT_DIR}"  # Use default if empty
 CLONE_DIR="$(eval echo "$CLONE_DIR")"   # Expand ~ to absolute path
@@ -90,7 +90,7 @@ if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
             gh repo clone "$REPO"
         fi
     done
-    
+
     echo "Operation complete! Repositories cloned (or skipped if already present)."
 else
     echo "Operation canceled."
